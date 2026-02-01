@@ -16,13 +16,15 @@ const CANVAS_HEIGHT = 600;
 const COURT_DIVIDER = CANVAS_HEIGHT / 2;
 const BALL_RADIUS = 15;
 const BALL_SPEED = 5;
+const PLAYER_WIDTH = 30;
 
 export const DodgeballGame: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [, setBalls] = useState<Ball[]>([]);
+  const [balls, setBalls] = useState<Ball[]>([]);
   const [score, setScore] = useState({ player: 0, opponent: 0 });
   const [caughtBall, setCaughtBall] = useState<Ball | null>(null);
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+  const [playerX, setPlayerX] = useState(CANVAS_WIDTH / 2);
   const ballIdRef = useRef(0);
   const gameLoopRef = useRef<number | undefined>(undefined);
 
@@ -78,64 +80,95 @@ export const DodgeballGame: React.FC = () => {
       ctx.fillText('相手コート', CANVAS_WIDTH / 2, 30);
       ctx.fillText('自分のコート', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 20);
 
-      // Update and draw balls
-      setBalls((currentBalls) => {
-        const updatedBalls = currentBalls
-          .map((ball) => {
-            if (ball.caught) return ball;
+      // Update balls
+      const updatedBalls = balls
+        .map((ball) => {
+          if (ball.caught) return ball;
 
-            // Update position
-            const newX = ball.x + ball.vx;
-            const newY = ball.y + ball.vy;
+          // Update position
+          const newX = ball.x + ball.vx;
+          const newY = ball.y + ball.vy;
 
-            // Wall collision
-            let newVx = ball.vx;
-            if (newX - ball.radius < 0 || newX + ball.radius > CANVAS_WIDTH) {
-              newVx = -ball.vx;
-            }
-
-            // Check if ball goes out of bounds
-            if (newY - ball.radius > CANVAS_HEIGHT) {
-              // Opponent scores
-              if (ball.owner === 'opponent') {
-                setScore((prev) => ({ ...prev, opponent: prev.opponent + 1 }));
-              }
-              return null;
-            }
-
-            if (newY + ball.radius < 0) {
-              // Player scores
-              if (ball.owner === 'player') {
-                setScore((prev) => ({ ...prev, player: prev.player + 1 }));
-              }
-              return null;
-            }
-
-            return {
-              ...ball,
-              x: newX - ball.radius < 0 ? ball.radius : newX + ball.radius > CANVAS_WIDTH ? CANVAS_WIDTH - ball.radius : newX,
-              y: newY,
-              vx: newVx,
-            };
-          })
-          .filter((ball): ball is Ball => ball !== null);
-
-        // Draw balls
-        updatedBalls.forEach((ball) => {
-          ctx.fillStyle = ball.owner === 'player' ? '#4CAF50' : '#F44336';
-          ctx.beginPath();
-          ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-          ctx.fill();
-
-          if (ball.caught) {
-            ctx.strokeStyle = '#FFEB3B';
-            ctx.lineWidth = 3;
-            ctx.stroke();
+          // Wall collision
+          let newVx = ball.vx;
+          if (newX - ball.radius < 0 || newX + ball.radius > CANVAS_WIDTH) {
+            newVx = -ball.vx;
           }
-        });
 
-        return updatedBalls;
+          // Check if ball goes out of bounds
+          if (newY - ball.radius > CANVAS_HEIGHT) {
+            // Opponent scores
+            if (ball.owner === 'opponent') {
+              setScore((prev) => ({ ...prev, opponent: prev.opponent + 1 }));
+            }
+            return null;
+          }
+
+          if (newY + ball.radius < 0) {
+            // Player scores
+            if (ball.owner === 'player') {
+              setScore((prev) => ({ ...prev, player: prev.player + 1 }));
+            }
+            return null;
+          }
+
+          return {
+            ...ball,
+            x: newX - ball.radius < 0 ? ball.radius : newX + ball.radius > CANVAS_WIDTH ? CANVAS_WIDTH - ball.radius : newX,
+            y: newY,
+            vx: newVx,
+          };
+        })
+        .filter((ball): ball is Ball => ball !== null);
+
+      // Draw balls
+      updatedBalls.forEach((ball) => {
+        ctx.fillStyle = ball.owner === 'player' ? '#4CAF50' : '#F44336';
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (ball.caught) {
+          ctx.strokeStyle = '#FFEB3B';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
       });
+
+      // Update balls state
+      setBalls(updatedBalls);
+
+      // Draw player (human figure at bottom)
+      const playerY = CANVAS_HEIGHT - 60;
+      
+      // Head
+      ctx.fillStyle = '#61dafb';
+      ctx.beginPath();
+      ctx.arc(playerX, playerY, 12, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Body
+      ctx.strokeStyle = '#61dafb';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(playerX, playerY + 12);
+      ctx.lineTo(playerX, playerY + 30);
+      ctx.stroke();
+      
+      // Arms
+      ctx.beginPath();
+      ctx.moveTo(playerX - 15, playerY + 20);
+      ctx.lineTo(playerX, playerY + 15);
+      ctx.lineTo(playerX + 15, playerY + 20);
+      ctx.stroke();
+      
+      // Legs
+      ctx.beginPath();
+      ctx.moveTo(playerX, playerY + 30);
+      ctx.lineTo(playerX - 10, playerY + 45);
+      ctx.moveTo(playerX, playerY + 30);
+      ctx.lineTo(playerX + 10, playerY + 45);
+      ctx.stroke();
 
       // Draw score
       ctx.fillStyle = '#ffffff';
@@ -154,7 +187,7 @@ export const DodgeballGame: React.FC = () => {
         cancelAnimationFrame(gameLoopRef.current);
       }
     };
-  }, [score]);
+  }, [balls, score, playerX]);
 
   // Handle tap to catch
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -164,6 +197,10 @@ export const DodgeballGame: React.FC = () => {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    // Update player position with bounds checking
+    const boundedX = Math.max(PLAYER_WIDTH / 2, Math.min(CANVAS_WIDTH - PLAYER_WIDTH / 2, x));
+    setPlayerX(boundedX);
 
     // Check if clicking on a ball in player's court
     setBalls((currentBalls) => {
@@ -230,6 +267,19 @@ export const DodgeballGame: React.FC = () => {
     setTouchStart(null);
   };
 
+  // Handle mouse move to update player position
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    
+    // Keep player within canvas bounds
+    const boundedX = Math.max(PLAYER_WIDTH / 2, Math.min(CANVAS_WIDTH - PLAYER_WIDTH / 2, x));
+    setPlayerX(boundedX);
+  };
+
   // Touch events for mobile
   const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -239,6 +289,10 @@ export const DodgeballGame: React.FC = () => {
     const touch = e.touches[0];
     const x = touch.clientX - rect.left;
     const y = touch.clientY - rect.top;
+
+    // Update player position with bounds checking
+    const boundedX = Math.max(PLAYER_WIDTH / 2, Math.min(CANVAS_WIDTH - PLAYER_WIDTH / 2, x));
+    setPlayerX(boundedX);
 
     // Check if touching a ball in player's court
     setBalls((currentBalls) => {
@@ -324,6 +378,7 @@ export const DodgeballGame: React.FC = () => {
         width={CANVAS_WIDTH}
         height={CANVAS_HEIGHT}
         onClick={handleCanvasClick}
+        onMouseMove={handleCanvasMouseMove}
         onMouseUp={handleCanvasMouseUp}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
