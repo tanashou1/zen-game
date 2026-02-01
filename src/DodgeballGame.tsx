@@ -20,7 +20,10 @@ const PLAYER_WIDTH = 30;
 
 export const DodgeballGame: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // State variables intentionally prefixed with _ as they trigger re-renders but aren't directly read
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_balls, setBalls] = useState<Ball[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_score, setScore] = useState({ player: 0, opponent: 0 });
   const scoreRef = useRef({ player: 0, opponent: 0 });
   const [caughtBall, setCaughtBall] = useState<Ball | null>(null);
@@ -124,9 +127,17 @@ export const DodgeballGame: React.FC = () => {
               return null;
             }
 
+            // Clamp ball position within canvas bounds
+            let clampedX = newX;
+            if (newX - ball.radius < 0) {
+              clampedX = ball.radius;
+            } else if (newX + ball.radius > CANVAS_WIDTH) {
+              clampedX = CANVAS_WIDTH - ball.radius;
+            }
+
             return {
               ...ball,
-              x: newX - ball.radius < 0 ? ball.radius : newX + ball.radius > CANVAS_WIDTH ? CANVAS_WIDTH - ball.radius : newX,
+              x: clampedX,
               y: newY,
               vx: newVx,
             };
@@ -446,7 +457,7 @@ export const DodgeballGame: React.FC = () => {
         gap: '10px'
       }}>
         <label htmlFor="speed-slider" style={{ fontSize: '16px' }}>
-          ボールの速度: {ballSpeed.toFixed(1)}
+          ボールの速度: {ballSpeed % 1 === 0 ? ballSpeed : ballSpeed.toFixed(1)}
         </label>
         <input
           id="speed-slider"
