@@ -16,8 +16,7 @@ const CANVAS_HEIGHT = 600;
 const COURT_DIVIDER = CANVAS_HEIGHT / 2;
 const BALL_RADIUS = 15;
 const BALL_SPEED = 5;
-const PLAYER_WIDTH = 40;
-const PLAYER_HEIGHT = 50;
+const PLAYER_WIDTH = 30;
 
 export const DodgeballGame: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -136,13 +135,11 @@ export const DodgeballGame: React.FC = () => {
         }
       });
 
-      // Update balls state if changed
-      if (updatedBalls.length !== balls.length || updatedBalls.some((ball, i) => ball !== balls[i])) {
-        setBalls(updatedBalls);
-      }
+      // Update balls state
+      setBalls(updatedBalls);
 
       // Draw player (human figure at bottom)
-      const playerY = CANVAS_HEIGHT - PLAYER_HEIGHT - 10;
+      const playerY = CANVAS_HEIGHT - 60;
       
       // Head
       ctx.fillStyle = '#61dafb';
@@ -201,8 +198,9 @@ export const DodgeballGame: React.FC = () => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Update player position
-    setPlayerX(x);
+    // Update player position with bounds checking
+    const boundedX = Math.max(PLAYER_WIDTH / 2, Math.min(CANVAS_WIDTH - PLAYER_WIDTH / 2, x));
+    setPlayerX(boundedX);
 
     // Check if clicking on a ball in player's court
     setBalls((currentBalls) => {
@@ -292,8 +290,9 @@ export const DodgeballGame: React.FC = () => {
     const x = touch.clientX - rect.left;
     const y = touch.clientY - rect.top;
 
-    // Update player position
-    setPlayerX(x);
+    // Update player position with bounds checking
+    const boundedX = Math.max(PLAYER_WIDTH / 2, Math.min(CANVAS_WIDTH - PLAYER_WIDTH / 2, x));
+    setPlayerX(boundedX);
 
     // Check if touching a ball in player's court
     setBalls((currentBalls) => {
