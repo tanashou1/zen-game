@@ -15,16 +15,19 @@ const CANVAS_WIDTH = 400;
 const CANVAS_HEIGHT = 600;
 const COURT_DIVIDER = CANVAS_HEIGHT / 2;
 const BALL_RADIUS = 15;
-const BALL_SPEED = 5;
+const DEFAULT_BALL_SPEED = 5;
 const PLAYER_WIDTH = 30;
 
 export const DodgeballGame: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [balls, setBalls] = useState<Ball[]>([]);
-  const [score, setScore] = useState({ player: 0, opponent: 0 });
+  const [_balls, setBalls] = useState<Ball[]>([]);
+  const [_score, setScore] = useState({ player: 0, opponent: 0 });
+  const scoreRef = useRef({ player: 0, opponent: 0 });
   const [caughtBall, setCaughtBall] = useState<Ball | null>(null);
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [playerX, setPlayerX] = useState(CANVAS_WIDTH / 2);
+  const opponentXRef = useRef(CANVAS_WIDTH / 2);
+  const [ballSpeed, setBallSpeed] = useState(DEFAULT_BALL_SPEED);
   const ballIdRef = useRef(0);
   const gameLoopRef = useRef<number | undefined>(undefined);
 
@@ -35,13 +38,13 @@ export const DodgeballGame: React.FC = () => {
       x: Math.random() * (CANVAS_WIDTH - BALL_RADIUS * 2) + BALL_RADIUS,
       y: BALL_RADIUS,
       vx: (Math.random() - 0.5) * 2,
-      vy: BALL_SPEED,
+      vy: ballSpeed,
       radius: BALL_RADIUS,
       caught: false,
       owner: 'opponent',
     };
     setBalls((prev) => [...prev, newBall]);
-  }, []);
+  }, [ballSpeed]);
 
   // Initialize game
   useEffect(() => {
@@ -81,62 +84,91 @@ export const DodgeballGame: React.FC = () => {
       ctx.fillText('自分のコート', CANVAS_WIDTH / 2, CANVAS_HEIGHT - 20);
 
       // Update balls
-      const updatedBalls = balls
-        .map((ball) => {
-          if (ball.caught) return ball;
+      setBalls((currentBalls) => {
+        const updatedBalls = currentBalls
+          .map((ball) => {
+            if (ball.caught) return ball;
 
-          // Update position
-          const newX = ball.x + ball.vx;
-          const newY = ball.y + ball.vy;
+            // Update position
+            const newX = ball.x + ball.vx;
+            const newY = ball.y + ball.vy;
 
-          // Wall collision
-          let newVx = ball.vx;
-          if (newX - ball.radius < 0 || newX + ball.radius > CANVAS_WIDTH) {
-            newVx = -ball.vx;
-          }
-
-          // Check if ball goes out of bounds
-          if (newY - ball.radius > CANVAS_HEIGHT) {
-            // Opponent scores
-            if (ball.owner === 'opponent') {
-              setScore((prev) => ({ ...prev, opponent: prev.opponent + 1 }));
+            // Wall collision
+            let newVx = ball.vx;
+            if (newX - ball.radius < 0 || newX + ball.radius > CANVAS_WIDTH) {
+              newVx = -ball.vx;
             }
-            return null;
-          }
 
-          if (newY + ball.radius < 0) {
-            // Player scores
-            if (ball.owner === 'player') {
-              setScore((prev) => ({ ...prev, player: prev.player + 1 }));
+            // Check if ball goes out of bounds
+            if (newY - ball.radius > CANVAS_HEIGHT) {
+              // Opponent scores
+              if (ball.owner === 'opponent') {
+                setScore((prev) => {
+                  const newScore = { ...prev, opponent: prev.opponent + 1 };
+                  scoreRef.current = newScore;
+                  return newScore;
+                });
+              }
+              return null;
             }
-            return null;
+
+            if (newY + ball.radius < 0) {
+              // Player scores
+              if (ball.owner === 'player') {
+                setScore((prev) => {
+                  const newScore = { ...prev, player: prev.player + 1 };
+                  scoreRef.current = newScore;
+                  return newScore;
+                });
+              }
+              return null;
+            }
+
+            return {
+              ...ball,
+              x: newX - ball.radius < 0 ? ball.radius : newX + ball.radius > CANVAS_WIDTH ? CANVAS_WIDTH - ball.radius : newX,
+              y: newY,
+              vx: newVx,
+            };
+          })
+          .filter((ball): ball is Ball => ball !== null);
+
+        // Draw balls
+        updatedBalls.forEach((ball) => {
+          ctx.fillStyle = ball.owner === 'player' ? '#4CAF50' : '#F44336';
+          ctx.beginPath();
+          ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+          ctx.fill();
+
+          if (ball.caught) {
+            ctx.strokeStyle = '#FFEB3B';
+            ctx.lineWidth = 3;
+            ctx.stroke();
           }
+        });
 
-          return {
-            ...ball,
-            x: newX - ball.radius < 0 ? ball.radius : newX + ball.radius > CANVAS_WIDTH ? CANVAS_WIDTH - ball.radius : newX,
-            y: newY,
-            vx: newVx,
-          };
-        })
-        .filter((ball): ball is Ball => ball !== null);
-
-      // Draw balls
-      updatedBalls.forEach((ball) => {
-        ctx.fillStyle = ball.owner === 'player' ? '#4CAF50' : '#F44336';
-        ctx.beginPath();
-        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (ball.caught) {
-          ctx.strokeStyle = '#FFEB3B';
-          ctx.lineWidth = 3;
-          ctx.stroke();
+        // Simple opponent AI: move towards incoming balls
+        const opponentCourtBalls = updatedBalls.filter(
+          (ball) => ball.y < COURT_DIVIDER && ball.owner === 'player'
+        );
+        if (opponentCourtBalls.length > 0) {
+          const closestBall = opponentCourtBalls.reduce((closest, ball) => 
+            ball.y < closest.y ? ball : closest
+          );
+          const dx = closestBall.x - opponentXRef.current;
+          const newOpponentX = opponentXRef.current + Math.sign(dx) * Math.min(Math.abs(dx), 3);
+          opponentXRef.current = Math.max(PLAYER_WIDTH / 2, Math.min(CANVAS_WIDTH - PLAYER_WIDTH / 2, newOpponentX));
+        } else {
+          // Move randomly when no balls are coming
+          if (Math.random() < 0.02) {
+            const randomMove = (Math.random() - 0.5) * 10;
+            const newOpponentX = opponentXRef.current + randomMove;
+            opponentXRef.current = Math.max(PLAYER_WIDTH / 2, Math.min(CANVAS_WIDTH - PLAYER_WIDTH / 2, newOpponentX));
+          }
         }
-      });
 
-      // Update balls state
-      setBalls(updatedBalls);
+        return updatedBalls;
+      });
 
       // Draw player (human figure at bottom)
       const playerY = CANVAS_HEIGHT - 60;
@@ -170,12 +202,44 @@ export const DodgeballGame: React.FC = () => {
       ctx.lineTo(playerX + 10, playerY + 45);
       ctx.stroke();
 
+      // Draw opponent (human figure at top)
+      const opponentY = 60;
+      
+      // Head
+      ctx.fillStyle = '#ff6b6b';
+      ctx.beginPath();
+      ctx.arc(opponentXRef.current, opponentY, 12, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Body
+      ctx.strokeStyle = '#ff6b6b';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(opponentXRef.current, opponentY + 12);
+      ctx.lineTo(opponentXRef.current, opponentY + 30);
+      ctx.stroke();
+      
+      // Arms
+      ctx.beginPath();
+      ctx.moveTo(opponentXRef.current - 15, opponentY + 20);
+      ctx.lineTo(opponentXRef.current, opponentY + 15);
+      ctx.lineTo(opponentXRef.current + 15, opponentY + 20);
+      ctx.stroke();
+      
+      // Legs
+      ctx.beginPath();
+      ctx.moveTo(opponentXRef.current, opponentY + 30);
+      ctx.lineTo(opponentXRef.current - 10, opponentY + 45);
+      ctx.moveTo(opponentXRef.current, opponentY + 30);
+      ctx.lineTo(opponentXRef.current + 10, opponentY + 45);
+      ctx.stroke();
+
       // Draw score
       ctx.fillStyle = '#ffffff';
       ctx.font = '16px Arial';
       ctx.textAlign = 'left';
-      ctx.fillText(`相手: ${score.opponent}`, 10, 60);
-      ctx.fillText(`自分: ${score.player}`, 10, CANVAS_HEIGHT - 40);
+      ctx.fillText(`相手: ${scoreRef.current.opponent}`, 10, 60);
+      ctx.fillText(`自分: ${scoreRef.current.player}`, 10, CANVAS_HEIGHT - 40);
 
       gameLoopRef.current = requestAnimationFrame(gameLoop);
     };
@@ -187,7 +251,7 @@ export const DodgeballGame: React.FC = () => {
         cancelAnimationFrame(gameLoopRef.current);
       }
     };
-  }, [balls, score, playerX]);
+  }, [playerX]);
 
   // Handle tap to catch
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -372,6 +436,31 @@ export const DodgeballGame: React.FC = () => {
       <div style={{ marginBottom: '10px', color: 'white' }}>
         <p>タップでボールをキャッチ！</p>
         <p>スワイプで投げ返す！</p>
+      </div>
+      <div style={{ 
+        marginBottom: '15px', 
+        color: 'white',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '10px'
+      }}>
+        <label htmlFor="speed-slider" style={{ fontSize: '16px' }}>
+          ボールの速度: {ballSpeed.toFixed(1)}
+        </label>
+        <input
+          id="speed-slider"
+          type="range"
+          min="1"
+          max="10"
+          step="0.5"
+          value={ballSpeed}
+          onChange={(e) => setBallSpeed(parseFloat(e.target.value))}
+          style={{ width: '300px', cursor: 'pointer' }}
+        />
+        <div style={{ fontSize: '14px', color: '#aaa' }}>
+          遅い ← → 速い
+        </div>
       </div>
       <canvas
         ref={canvasRef}
