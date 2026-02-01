@@ -23,6 +23,7 @@ export const DodgeballGame: React.FC = () => {
   // State variables intentionally prefixed with _ as they trigger re-renders but aren't directly read
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_balls, setBalls] = useState<Ball[]>([]);
+  const ballsRef = useRef<Ball[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_score, setScore] = useState({ player: 0, opponent: 0 });
   const scoreRef = useRef({ player: 0, opponent: 0 });
@@ -68,8 +69,9 @@ export const DodgeballGame: React.FC = () => {
     if (!ctx) return;
 
     const gameLoop = () => {
-      // Clear canvas
-      ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      // Clear canvas and fill background
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
       // Draw court divider
       ctx.strokeStyle = '#ffffff';
@@ -144,19 +146,8 @@ export const DodgeballGame: React.FC = () => {
           })
           .filter((ball): ball is Ball => ball !== null);
 
-        // Draw balls
-        updatedBalls.forEach((ball) => {
-          ctx.fillStyle = ball.owner === 'player' ? '#4CAF50' : '#F44336';
-          ctx.beginPath();
-          ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-          ctx.fill();
-
-          if (ball.caught) {
-            ctx.strokeStyle = '#FFEB3B';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-          }
-        });
+        // Store in ref for rendering
+        ballsRef.current = updatedBalls;
 
         // Simple opponent AI: move towards incoming balls
         const opponentCourtBalls = updatedBalls.filter(
@@ -179,6 +170,20 @@ export const DodgeballGame: React.FC = () => {
         }
 
         return updatedBalls;
+      });
+
+      // Draw balls (using ref to ensure immediate access)
+      ballsRef.current.forEach((ball) => {
+        ctx.fillStyle = ball.owner === 'player' ? '#4CAF50' : '#F44336';
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (ball.caught) {
+          ctx.strokeStyle = '#FFEB3B';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
       });
 
       // Draw player (human figure at bottom)
