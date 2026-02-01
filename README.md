@@ -2,6 +2,8 @@
 ブラウザゲームです。typescript, reactで作ります
 github pagesでこうかいします。
 
+🎮 **アプリURL**: https://tanashou1.github.io/zen-game/
+
 ドッジボールのゲームです。
 ボールが飛んでくるので、タップでボールを止めます。
 ボールを止めたあとにスワイプで、相手にボールを投げられます。
